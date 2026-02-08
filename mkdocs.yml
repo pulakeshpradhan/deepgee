@@ -1,0 +1,106 @@
+site_name: DeepGEE Documentation
+site_description: Earth Observation with Google Earth Engine and Deep Learning
+site_author: Pulakesh Pradhan
+site_url: https://pulakeshpradhan.github.io/deepgee/
+
+repo_name: pulakeshpradhan/deepgee
+repo_url: https://github.com/pulakeshpradhan/deepgee
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  palette:
+    # Light mode
+    - scheme: default
+      primary: green
+      accent: light green
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    # Dark mode
+    - scheme: slate
+      primary: green
+      accent: light green
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - navigation.tracking
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.code.annotate
+  icon:
+    repo: fontawesome/brands/github
+  logo: assets/logo.png
+  favicon: assets/favicon.png
+
+nav:
+  - Home: index.md
+  - Getting Started:
+      - Installation: getting-started/installation.md
+      - Quick Start: getting-started/quick-start.md
+      - GEE Setup: getting-started/gee-setup.md
+  - User Guide:
+      - Overview: user-guide/overview.md
+      - Authentication: user-guide/authentication.md
+      - Data Download: user-guide/data-download.md
+      - Deep Learning: user-guide/deep-learning.md
+      - Utilities: user-guide/utilities.md
+  - Examples:
+      - Land Cover Classification: examples/land-cover.md
+      - Change Detection: examples/change-detection.md
+      - Crop Monitoring: examples/crop-monitoring.md
+      - Custom Workflows: examples/custom-workflows.md
+  - API Reference:
+      - auth: api/auth.md
+      - data: api/data.md
+      - models: api/models.md
+      - utils: api/utils.md
+  - About:
+      - Project Info: about/project.md
+      - Contributing: about/contributing.md
+      - License: about/license.md
+      - Changelog: about/changelog.md
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            docstring_style: google
+            show_source: true
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.details
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/pulakeshpradhan/deepgee
+    - icon: fontawesome/brands/python
+      link: https://pypi.org/project/deepgee/
+  version:
+    provider: mike
+
+copyright: Copyright &copy; 2024 Pulakesh Pradhan

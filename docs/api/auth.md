@@ -1,0 +1,3 @@
+# auth Module
+
+::: deepgee.auth
