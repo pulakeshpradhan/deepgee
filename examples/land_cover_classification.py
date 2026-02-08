@@ -1,17 +1,24 @@
 """
-Example: Land Cover Classification with DeepGEE
+Example: Land Cover Classification with DeepGEE (Enhanced with Tiled Download)
 
 This example demonstrates a complete workflow for land cover classification:
 1. Authenticate and initialize GEE
-2. Download satellite data
-3. Train a deep learning model
-4. Apply to full image
-5. Visualize results
+2. Download satellite data using TILED download for large areas
+3. Generate proper training samples
+4. Train a deep learning model
+5. Apply to full image
+6. Visualize results
 """
 
 import deepgee
 import numpy as np
 import pandas as pd
+import os
+
+# Create output directories
+os.makedirs('data', exist_ok=True)
+os.makedirs('outputs', exist_ok=True)
+os.makedirs('models', exist_ok=True)
 
 # =============================================================================
 # STEP 1: AUTHENTICATE AND INITIALIZE GEE
@@ -30,18 +37,20 @@ status = deepgee.auth.check_gee_status()
 print(f"GEE Status: {status['status']}")
 
 # =============================================================================
-# STEP 2: DOWNLOAD SATELLITE DATA
+# STEP 2: DOWNLOAD SATELLITE DATA USING TILED DOWNLOAD
 # =============================================================================
 
-print("\nStep 2: Downloading satellite data...")
+print("\nStep 2: Downloading satellite data using tiled download...")
 
 from deepgee import GEEDataDownloader
 
 # Create downloader
 downloader = GEEDataDownloader()
 
-# Define region of interest (example: part of India)
-roi = [85.0, 20.0, 87.0, 22.0]  # [lon_min, lat_min, lon_max, lat_max]
+# Define region of interest (example: smaller area for testing)
+# For large areas, use tiled download
+roi = [85.0, 20.0, 85.5, 20.5]  # Small area for testing
+# roi = [85.0, 20.0, 88.0, 23.0]  # Large area - use tiled download
 
 # Create composite with spectral indices and elevation
 composite = downloader.create_composite(
@@ -53,38 +62,45 @@ composite = downloader.create_composite(
     add_elevation=True
 )
 
-# Download to local file
-print("Downloading composite image...")
-downloader.download_image(
-    composite,
-    output_path='data/landsat_composite_2023.tif',
-    roi=roi,
-    scale=30,
-    crs='EPSG:4326'
-)
+# Check area size to decide download method
+lon_min, lat_min, lon_max, lat_max = roi
+area_deg = (lon_max - lon_min) * (lat_max - lat_min)
+
+print(f"Area size: {area_deg:.2f} square degrees")
+
+if area_deg > 1.0:  # Large area - use tiled download
+    print("Using TILED download for large area...")
+    downloader.download_image_tiled(
+        composite,
+        output_path='data/landsat_composite_2023.tif',
+        roi=roi,
+        scale=30,
+        tile_size=0.5,  # 0.5 degree tiles
+        crs='EPSG:4326'
+    )
+else:  # Small area - regular download
+    print("Using regular download...")
+    downloader.download_image(
+        composite,
+        output_path='data/landsat_composite_2023.tif',
+        roi=roi,
+        scale=30,
+        crs='EPSG:4326'
+    )
 
 # =============================================================================
-# STEP 3: PREPARE TRAINING DATA
+# STEP 3: GENERATE PROPER TRAINING SAMPLES
 # =============================================================================
 
-print("\nStep 3: Preparing training data...")
+print("\nStep 3: Generating training samples...")
 
-# Load training samples (CSV exported from GEE)
-# The CSV should have columns for each band/index and a 'class' column
-samples = pd.read_csv('data/training_samples.csv')
-
-# Define feature columns
-feature_cols = [
-    'B1', 'B2', 'B3', 'B4', 'B5', 'B6', 'B7',  # Landsat bands
-    'NDVI', 'EVI', 'NDWI', 'NDBI', 'NBR', 'NDMI', 'NDBaI',  # Indices
-    'elevation'  # Topography
-]
-
-# Define class names
+# Define class names and values
 class_names = [
     'Water', 'Forest', 'Grassland', 'Cropland',
     'Urban', 'Bareland', 'Wetland', 'Shrubland', 'Snow/Ice'
 ]
+
+class_values = list(range(len(class_names)))
 
 class_colors = [
     '#0000FF',  # Water: Blue
@@ -98,13 +114,62 @@ class_colors = [
     '#FFFFFF'   # Snow/Ice: White
 ]
 
+# Option 1: Generate random training samples (for demonstration)
+print("Generating random training samples...")
+training_points = downloader.generate_training_samples(
+    roi=roi,
+    class_values=class_values,
+    class_names=class_names,
+    samples_per_class=300,  # 300 samples per class
+    scale=30,
+    seed=42
+)
+
+# Option 2: Use existing land cover map for training (more realistic)
+# Uncomment to use MODIS land cover as reference
+"""
+print("Generating training samples from MODIS land cover...")
+modis_lc = ee.Image('MODIS/006/MCD12Q1/2020_01_01').select('LC_Type1')
+training_points = downloader.create_stratified_samples_from_classification(
+    classified_image=modis_lc,
+    roi=roi,
+    class_band='LC_Type1',
+    samples_per_class=300,
+    scale=500,
+    seed=42
+)
+"""
+
+# Extract training data from composite
+print("Extracting features from training points...")
+training_data = downloader.extract_training_samples(
+    image=composite,
+    samples=training_points,
+    scale=30,
+    output_path='data/training_samples.csv'
+)
+
+# Load training samples
+samples = pd.read_csv('data/training_samples.csv')
+
+# Define feature columns
+feature_cols = [
+    'B1', 'B2', 'B3', 'B4', 'B5', 'B6', 'B7',  # Landsat bands
+    'NDVI', 'EVI', 'NDWI', 'NDBI', 'NBR', 'NDMI', 'NDBaI',  # Indices
+    'elevation'  # Topography
+]
+
 # Extract features and labels
 X = samples[feature_cols].values
-y = samples['class'].values  # Should be 0-8 for 9 classes
+y = samples['class'].values
 
 print(f"Training samples: {len(X)}")
 print(f"Features: {X.shape[1]}")
 print(f"Classes: {len(class_names)}")
+print(f"Class distribution:")
+for class_val, class_name in enumerate(class_names):
+    count = np.sum(y == class_val)
+    print(f"  {class_name}: {count} samples")
 
 # =============================================================================
 # STEP 4: BUILD AND TRAIN MODEL
@@ -124,6 +189,7 @@ classifier = LandCoverClassifier(
 classifier.build_model(input_shape=(len(feature_cols),))
 
 # Print model summary
+print("\nModel Architecture:")
 classifier.model.summary()
 
 # Prepare data (split and normalize)
@@ -131,7 +197,7 @@ X_train, X_test, y_train, y_test = classifier.prepare_data(
     X, y, test_size=0.2, random_state=42
 )
 
-print(f"Training set: {len(X_train)} samples")
+print(f"\nTraining set: {len(X_train)} samples")
 print(f"Test set: {len(X_test)} samples")
 
 # Train model
@@ -266,4 +332,11 @@ print("  - area_distribution.png")
 print("\nModel saved to 'models/' directory:")
 print("  - land_cover_model.h5")
 print("  - scaler.pkl")
+print("\nData saved to 'data/' directory:")
+print("  - landsat_composite_2023.tif")
+print("  - training_samples.csv")
+print("="*60)
+print("\nNOTE: For large areas (>1 square degree), the tiled download")
+print("method is automatically used to avoid GEE memory limits.")
+print("Tiles are downloaded to temp_tiles/ and merged automatically.")
 print("="*60)

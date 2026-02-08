@@ -319,6 +319,284 @@ class GEEDataDownloader:
             print(f"✗ Download failed: {e}")
             raise
     
+    def download_image_tiled(
+        self,
+        image: ee.Image,
+        output_path: str,
+        roi: Union[ee.Geometry, List[float]],
+        scale: int = 30,
+        crs: str = 'EPSG:4326',
+        tile_size: float = 0.5,
+        temp_dir: Optional[str] = None
+    ) -> str:
+        """
+        Download large images using tiled approach and merge.
+        
+        This method splits large areas into tiles, downloads each tile,
+        and merges them into a single GeoTIFF. Useful for avoiding
+        GEE memory limits.
+        
+        Parameters:
+        -----------
+        image : ee.Image
+            Image to download
+        output_path : str
+            Output file path (GeoTIFF)
+        roi : ee.Geometry or list
+            Region of interest
+        scale : int
+            Resolution in meters
+        crs : str
+            Coordinate reference system
+        tile_size : float
+            Tile size in degrees (default: 0.5 degrees)
+        temp_dir : str, optional
+            Temporary directory for tiles (default: './temp_tiles')
+        
+        Returns:
+        --------
+        str : Path to merged file
+        
+        Examples:
+        ---------
+        >>> downloader = GEEDataDownloader()
+        >>> composite = downloader.create_composite(...)
+        >>> downloader.download_image_tiled(
+        ...     composite, 'large_area.tif', roi=[85, 20, 88, 23],
+        ...     scale=30, tile_size=0.5
+        ... )
+        """
+        import rasterio
+        from rasterio.merge import merge
+        import shutil
+        
+        # Convert ROI to list if needed
+        if isinstance(roi, ee.Geometry):
+            bounds = roi.bounds().getInfo()['coordinates'][0]
+            lon_min = min([p[0] for p in bounds])
+            lat_min = min([p[1] for p in bounds])
+            lon_max = max([p[0] for p in bounds])
+            lat_max = max([p[1] for p in bounds])
+            roi = [lon_min, lat_min, lon_max, lat_max]
+        
+        # Create temp directory
+        if temp_dir is None:
+            temp_dir = './temp_tiles'
+        os.makedirs(temp_dir, exist_ok=True)
+        
+        lon_min, lat_min, lon_max, lat_max = roi
+        
+        # Calculate tiles
+        tiles = []
+        tile_files = []
+        
+        lat = lat_min
+        tile_idx = 0
+        
+        print(f"Downloading large area in tiles (tile size: {tile_size}°)...")
+        
+        while lat < lat_max:
+            lon = lon_min
+            while lon < lon_max:
+                # Define tile bounds
+                tile_lon_max = min(lon + tile_size, lon_max)
+                tile_lat_max = min(lat + tile_size, lat_max)
+                tile_roi = [lon, lat, tile_lon_max, tile_lat_max]
+                tile_geom = ee.Geometry.Rectangle(tile_roi)
+                
+                # Download tile
+                tile_path = os.path.join(temp_dir, f'tile_{tile_idx}.tif')
+                
+                try:
+                    print(f"  Downloading tile {tile_idx + 1} [{lon:.2f}, {lat:.2f}, {tile_lon_max:.2f}, {tile_lat_max:.2f}]...")
+                    geemap.ee_export_image(
+                        image,
+                        filename=tile_path,
+                        scale=scale,
+                        region=tile_geom,
+                        crs=crs,
+                        file_per_band=False
+                    )
+                    tile_files.append(tile_path)
+                    tile_idx += 1
+                except Exception as e:
+                    print(f"  Warning: Tile {tile_idx} failed: {e}")
+                
+                lon += tile_size
+            lat += tile_size
+        
+        print(f"✓ Downloaded {len(tile_files)} tiles")
+        
+        # Merge tiles
+        print("Merging tiles...")
+        src_files_to_mosaic = []
+        
+        for tile_file in tile_files:
+            src = rasterio.open(tile_file)
+            src_files_to_mosaic.append(src)
+        
+        mosaic, out_trans = merge(src_files_to_mosaic)
+        
+        # Get metadata from first tile
+        out_meta = src_files_to_mosaic[0].meta.copy()
+        out_meta.update({
+            "driver": "GTiff",
+            "height": mosaic.shape[1],
+            "width": mosaic.shape[2],
+            "transform": out_trans,
+            "compress": "lzw"
+        })
+        
+        # Write merged file
+        with rasterio.open(output_path, "w", **out_meta) as dest:
+            dest.write(mosaic)
+        
+        # Close all source files
+        for src in src_files_to_mosaic:
+            src.close()
+        
+        # Clean up temp directory
+        print("Cleaning up temporary files...")
+        shutil.rmtree(temp_dir)
+        
+        print(f"✓ Merged image saved to: {output_path}")
+        return output_path
+    
+    def generate_training_samples(
+        self,
+        roi: Union[ee.Geometry, List[float]],
+        class_values: List[int],
+        class_names: List[str],
+        samples_per_class: int = 500,
+        scale: int = 30,
+        seed: int = 42
+    ) -> ee.FeatureCollection:
+        """
+        Generate stratified random training samples for land cover classification.
+        
+        This method creates random points within the ROI and assigns class labels
+        for training. For real applications, replace this with actual ground truth data.
+        
+        Parameters:
+        -----------
+        roi : ee.Geometry or list
+            Region of interest
+        class_values : list
+            Class values (e.g., [0, 1, 2, 3, 4, 5, 6, 7, 8])
+        class_names : list
+            Class names (e.g., ['Water', 'Forest', ...])
+        samples_per_class : int
+            Number of samples per class
+        scale : int
+            Sampling resolution
+        seed : int
+            Random seed for reproducibility
+        
+        Returns:
+        --------
+        ee.FeatureCollection : Training samples with 'class' property
+        
+        Examples:
+        ---------
+        >>> downloader = GEEDataDownloader()
+        >>> roi = [85.0, 20.0, 87.0, 22.0]
+        >>> class_values = [0, 1, 2, 3, 4, 5, 6, 7, 8]
+        >>> class_names = ['Water', 'Forest', 'Grassland', 'Cropland',
+        ...                'Urban', 'Bareland', 'Wetland', 'Shrubland', 'Snow']
+        >>> samples = downloader.generate_training_samples(
+        ...     roi, class_values, class_names, samples_per_class=500
+        ... )
+        """
+        # Convert ROI to geometry if needed
+        if isinstance(roi, list):
+            roi = ee.Geometry.Rectangle(roi)
+        
+        # Generate random points for each class
+        all_samples = []
+        
+        for class_val, class_name in zip(class_values, class_names):
+            # Generate random points
+            points = ee.FeatureCollection.randomPoints(
+                region=roi,
+                points=samples_per_class,
+                seed=seed + class_val
+            )
+            
+            # Add class property
+            points = points.map(lambda f: f.set('class', class_val).set('class_name', class_name))
+            all_samples.append(points)
+        
+        # Merge all samples
+        training_samples = ee.FeatureCollection(all_samples).flatten()
+        
+        print(f"✓ Generated {len(class_values) * samples_per_class} training samples")
+        print(f"  Classes: {', '.join(class_names)}")
+        print(f"  Samples per class: {samples_per_class}")
+        
+        return training_samples
+    
+    def create_stratified_samples_from_classification(
+        self,
+        classified_image: ee.Image,
+        roi: Union[ee.Geometry, List[float]],
+        class_band: str = 'classification',
+        samples_per_class: int = 500,
+        scale: int = 30,
+        seed: int = 42
+    ) -> ee.FeatureCollection:
+        """
+        Create stratified random samples from an existing classification.
+        
+        Useful for creating training data from existing land cover maps.
+        
+        Parameters:
+        -----------
+        classified_image : ee.Image
+            Classified image with class values
+        roi : ee.Geometry or list
+            Region of interest
+        class_band : str
+            Name of classification band
+        samples_per_class : int
+            Number of samples per class
+        scale : int
+            Sampling resolution
+        seed : int
+            Random seed
+        
+        Returns:
+        --------
+        ee.FeatureCollection : Stratified samples
+        
+        Examples:
+        ---------
+        >>> # Use existing land cover map
+        >>> lc_map = ee.Image('MODIS/006/MCD12Q1/2020_01_01').select('LC_Type1')
+        >>> samples = downloader.create_stratified_samples_from_classification(
+        ...     lc_map, roi, class_band='LC_Type1', samples_per_class=300
+        ... )
+        """
+        # Convert ROI to geometry if needed
+        if isinstance(roi, list):
+            roi = ee.Geometry.Rectangle(roi)
+        
+        # Create stratified sample
+        samples = classified_image.select(class_band).stratifiedSample(
+            numPoints=samples_per_class,
+            classBand=class_band,
+            region=roi,
+            scale=scale,
+            seed=seed,
+            geometries=True
+        )
+        
+        # Rename class band to 'class' for consistency
+        samples = samples.map(lambda f: f.set('class', f.get(class_band)))
+        
+        print(f"✓ Created stratified samples from classification")
+        
+        return samples
+    
     def extract_training_samples(
         self,
         image: ee.Image,
