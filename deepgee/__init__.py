@@ -16,7 +16,7 @@ Features:
 """
 
 __version__ = "0.1.0"
-__author__ = "DeepGEE Team"
+__author__ = "Pulakesh Pradhan"
 
 from .auth import authenticate_gee, initialize_gee
 from .data import GEEDataDownloader, SpectralIndices

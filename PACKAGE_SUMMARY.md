@@ -343,7 +343,7 @@ Potential additions:
 - **Documentation**: USAGE_GUIDE.md
 - **Examples**: examples/ directory
 - **Issues**: GitHub Issues
-- **Email**: <deepgee@example.com>
+- **Email**: <pulakesh.mid@gmail.com>>
 
 ---
 

@@ -249,7 +249,7 @@ This project is licensed under the MIT License - see [LICENSE](LICENSE) file for
 ## 📧 Contact
 
 - **Issues**: [GitHub Issues](https://github.com/your-repo/deepgee/issues)
-- **Email**: <deepgee@example.com>
+- **Email**: <pulakesh.mid@gmail.com>>
 - **Documentation**: [ReadTheDocs](https://deepgee.readthedocs.io/)
 
 ## 🌟 Citation
@@ -259,9 +259,9 @@ If you use DeepGEE in your research, please cite:
 ```bibtex
 @software{deepgee2024,
   title={DeepGEE: Earth Observation with Google Earth Engine and Deep Learning},
-  author={DeepGEE Team},
+  author={Pulakesh Pradhan},
   year={2024},
-  url={https://github.com/your-repo/deepgee}
+  url={https://github.com/pulakeshpradhan/deepgee}
 }
 ```
 

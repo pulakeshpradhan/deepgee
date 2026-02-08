@@ -10,12 +10,12 @@ with open("README.md", "r", encoding="utf-8") as fh:
 setup(
     name="deepgee",
     version="0.1.0",
-    author="DeepGEE Team",
-    author_email="deepgee@example.com",
+    author="Pulakesh Pradhan",
+    author_email="pulakesh.mid@gmail.com",
     description="Earth Observation with Google Earth Engine and Deep Learning",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/your-repo/deepgee",
+    repo_url="https://github.com/pulakeshpradhan/deepgee",
     packages=find_packages(),
     classifiers=[
         "Development Status :: 3 - Alpha",
@@ -53,8 +53,8 @@ setup(
     },
     keywords="earth-observation gee google-earth-engine deep-learning remote-sensing",
     project_urls={
-        "Documentation": "https://deepgee.readthedocs.io/",
-        "Source": "https://github.com/your-repo/deepgee",
-        "Bug Reports": "https://github.com/your-repo/deepgee/issues",
+        "Documentation": "https://github.com/pulakeshpradhan/deepgee#readme",
+        "Source": "https://github.com/pulakeshpradhan/deepgee",
+        "Bug Reports": "https://github.com/pulakeshpradhan/deepgee/issues",
     },
 )

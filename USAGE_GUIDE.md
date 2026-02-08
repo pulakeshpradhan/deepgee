@@ -381,7 +381,7 @@ pip install tensorflow
 For issues and questions:
 
 - GitHub Issues: [github.com/your-repo/deepgee/issues](https://github.com/your-repo/deepgee/issues)
-- Email: <deepgee@example.com>
+- Email: <pulakesh.mid@gmail.com>>
 
 ---
 
