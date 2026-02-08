@@ -689,3 +689,358 @@ class GEEDataDownloader:
         
         Map.addLayer(image, vis_params, name)
         return Map
+    
+    def get_training_from_esa_worldcover(
+        self,
+        roi: Union[ee.Geometry, List[float]],
+        year: int = 2021,
+        samples_per_class: int = 500,
+        scale: int = 10,
+        seed: int = 42
+    ) -> ee.FeatureCollection:
+        """
+        Generate training samples from ESA WorldCover dataset.
+        
+        ESA WorldCover provides global land cover maps at 10m resolution.
+        This is a high-quality, publicly available dataset perfect for training.
+        
+        Parameters:
+        -----------
+        roi : ee.Geometry or list
+            Region of interest
+        year : int
+            Year (2020 or 2021 available)
+        samples_per_class : int
+            Number of samples per class
+        scale : int
+            Sampling resolution (10m for WorldCover)
+        seed : int
+            Random seed
+        
+        Returns:
+        --------
+        ee.FeatureCollection : Training samples with 'class' property
+        
+        Class Mapping:
+        --------------
+        10: Tree cover
+        20: Shrubland
+        30: Grassland
+        40: Cropland
+        50: Built-up
+        60: Bare / sparse vegetation
+        70: Snow and ice
+        80: Permanent water bodies
+        90: Herbaceous wetland
+        95: Mangroves
+        100: Moss and lichen
+        
+        Examples:
+        ---------
+        >>> downloader = GEEDataDownloader()
+        >>> roi = [85.0, 20.0, 87.0, 22.0]
+        >>> samples = downloader.get_training_from_esa_worldcover(
+        ...     roi, year=2021, samples_per_class=500
+        ... )
+        """
+        # Convert ROI to geometry if needed
+        if isinstance(roi, list):
+            roi = ee.Geometry.Rectangle(roi)
+        
+        # Load ESA WorldCover
+        worldcover = ee.ImageCollection('ESA/WorldCover/v200').first()
+        if year == 2020:
+            worldcover = ee.ImageCollection('ESA/WorldCover/v100').first()
+        
+        # Create stratified sample
+        samples = worldcover.stratifiedSample(
+            numPoints=samples_per_class,
+            classBand='Map',
+            region=roi,
+            scale=scale,
+            seed=seed,
+            geometries=True
+        )
+        
+        # Rename to 'class' for consistency
+        samples = samples.map(lambda f: f.set('class', f.get('Map')))
+        
+        print(f"✓ Generated training samples from ESA WorldCover {year}")
+        print(f"  Samples per class: {samples_per_class}")
+        print(f"  Scale: {scale}m")
+        
+        return samples
+    
+    def get_training_from_dynamic_world(
+        self,
+        roi: Union[ee.Geometry, List[float]],
+        start_date: str,
+        end_date: str,
+        samples_per_class: int = 500,
+        scale: int = 10,
+        seed: int = 42
+    ) -> ee.FeatureCollection:
+        """
+        Generate training samples from Google Dynamic World dataset.
+        
+        Dynamic World provides near real-time land cover at 10m resolution
+        using Sentinel-2 data. Updated every 2-5 days.
+        
+        Parameters:
+        -----------
+        roi : ee.Geometry or list
+            Region of interest
+        start_date : str
+            Start date (YYYY-MM-DD)
+        end_date : str
+            End date (YYYY-MM-DD)
+        samples_per_class : int
+            Number of samples per class
+        scale : int
+            Sampling resolution (10m for Dynamic World)
+        seed : int
+            Random seed
+        
+        Returns:
+        --------
+        ee.FeatureCollection : Training samples with 'class' property
+        
+        Class Mapping:
+        --------------
+        0: Water
+        1: Trees
+        2: Grass
+        3: Flooded vegetation
+        4: Crops
+        5: Shrub and scrub
+        6: Built area
+        7: Bare ground
+        8: Snow and ice
+        
+        Examples:
+        ---------
+        >>> downloader = GEEDataDownloader()
+        >>> roi = [85.0, 20.0, 87.0, 22.0]
+        >>> samples = downloader.get_training_from_dynamic_world(
+        ...     roi, '2023-01-01', '2023-12-31', samples_per_class=500
+        ... )
+        """
+        # Convert ROI to geometry if needed
+        if isinstance(roi, list):
+            roi = ee.Geometry.Rectangle(roi)
+        
+        # Load Dynamic World
+        dw = ee.ImageCollection('GOOGLE/DYNAMICWORLD/V1') \
+            .filterBounds(roi) \
+            .filterDate(start_date, end_date) \
+            .select('label') \
+            .mode()  # Most common class
+        
+        # Create stratified sample
+        samples = dw.stratifiedSample(
+            numPoints=samples_per_class,
+            classBand='label',
+            region=roi,
+            scale=scale,
+            seed=seed,
+            geometries=True
+        )
+        
+        # Rename to 'class' for consistency
+        samples = samples.map(lambda f: f.set('class', f.get('label')))
+        
+        print(f"✓ Generated training samples from Dynamic World")
+        print(f"  Period: {start_date} to {end_date}")
+        print(f"  Samples per class: {samples_per_class}")
+        print(f"  Scale: {scale}m")
+        
+        return samples
+    
+    def get_training_from_modis_lc(
+        self,
+        roi: Union[ee.Geometry, List[float]],
+        year: int = 2020,
+        samples_per_class: int = 500,
+        scale: int = 500,
+        seed: int = 42,
+        lc_type: int = 1
+    ) -> ee.FeatureCollection:
+        """
+        Generate training samples from MODIS Land Cover dataset.
+        
+        MODIS provides global land cover at 500m resolution.
+        Long time series available (2001-present).
+        
+        Parameters:
+        -----------
+        roi : ee.Geometry or list
+            Region of interest
+        year : int
+            Year (2001-2022)
+        samples_per_class : int
+            Number of samples per class
+        scale : int
+            Sampling resolution (500m for MODIS)
+        seed : int
+            Random seed
+        lc_type : int
+            Land cover classification scheme (1-5)
+            1: IGBP (17 classes) - Default
+            2: UMD (15 classes)
+            3: LAI (8 classes)
+            4: BGC (8 classes)
+            5: PFT (11 classes)
+        
+        Returns:
+        --------
+        ee.FeatureCollection : Training samples with 'class' property
+        
+        IGBP Classes (LC_Type1):
+        -------------------------
+        1: Evergreen Needleleaf Forests
+        2: Evergreen Broadleaf Forests
+        3: Deciduous Needleleaf Forests
+        4: Deciduous Broadleaf Forests
+        5: Mixed Forests
+        6: Closed Shrublands
+        7: Open Shrublands
+        8: Woody Savannas
+        9: Savannas
+        10: Grasslands
+        11: Permanent Wetlands
+        12: Croplands
+        13: Urban and Built-up Lands
+        14: Cropland/Natural Vegetation Mosaics
+        15: Permanent Snow and Ice
+        16: Barren
+        17: Water Bodies
+        
+        Examples:
+        ---------
+        >>> downloader = GEEDataDownloader()
+        >>> roi = [85.0, 20.0, 87.0, 22.0]
+        >>> samples = downloader.get_training_from_modis_lc(
+        ...     roi, year=2020, samples_per_class=300
+        ... )
+        """
+        # Convert ROI to geometry if needed
+        if isinstance(roi, list):
+            roi = ee.Geometry.Rectangle(roi)
+        
+        # Load MODIS Land Cover
+        modis_lc = ee.ImageCollection('MODIS/006/MCD12Q1') \
+            .filterDate(f'{year}-01-01', f'{year}-12-31') \
+            .first() \
+            .select(f'LC_Type{lc_type}')
+        
+        # Create stratified sample
+        samples = modis_lc.stratifiedSample(
+            numPoints=samples_per_class,
+            classBand=f'LC_Type{lc_type}',
+            region=roi,
+            scale=scale,
+            seed=seed,
+            geometries=True
+        )
+        
+        # Rename to 'class' for consistency
+        samples = samples.map(lambda f: f.set('class', f.get(f'LC_Type{lc_type}')))
+        
+        print(f"✓ Generated training samples from MODIS Land Cover {year}")
+        print(f"  Classification: LC_Type{lc_type}")
+        print(f"  Samples per class: {samples_per_class}")
+        print(f"  Scale: {scale}m")
+        
+        return samples
+    
+    def get_training_from_copernicus_lc(
+        self,
+        roi: Union[ee.Geometry, List[float]],
+        year: int = 2020,
+        samples_per_class: int = 500,
+        scale: int = 100,
+        seed: int = 42
+    ) -> ee.FeatureCollection:
+        """
+        Generate training samples from Copernicus Global Land Cover.
+        
+        Copernicus provides global land cover at 100m resolution.
+        
+        Parameters:
+        -----------
+        roi : ee.Geometry or list
+            Region of interest
+        year : int
+            Year (2015-2019 available)
+        samples_per_class : int
+            Number of samples per class
+        scale : int
+            Sampling resolution (100m for Copernicus)
+        seed : int
+            Random seed
+        
+        Returns:
+        --------
+        ee.FeatureCollection : Training samples with 'class' property
+        
+        Class Mapping:
+        --------------
+        0: Unknown
+        20: Shrubs
+        30: Herbaceous vegetation
+        40: Cultivated and managed vegetation/agriculture
+        50: Urban / built up
+        60: Bare / sparse vegetation
+        70: Snow and ice
+        80: Permanent water bodies
+        90: Herbaceous wetland
+        100: Moss and lichen
+        111: Closed forest, evergreen needle leaf
+        112: Closed forest, evergreen broad leaf
+        113: Closed forest, deciduous needle leaf
+        114: Closed forest, deciduous broad leaf
+        115: Closed forest, mixed
+        116: Closed forest, not matching any of the other definitions
+        121: Open forest, evergreen needle leaf
+        122: Open forest, evergreen broad leaf
+        123: Open forest, deciduous needle leaf
+        124: Open forest, deciduous broad leaf
+        125: Open forest, mixed
+        126: Open forest, not matching any of the other definitions
+        200: Oceans, seas
+        
+        Examples:
+        ---------
+        >>> downloader = GEEDataDownloader()
+        >>> roi = [85.0, 20.0, 87.0, 22.0]
+        >>> samples = downloader.get_training_from_copernicus_lc(
+        ...     roi, year=2019, samples_per_class=300
+        ... )
+        """
+        # Convert ROI to geometry if needed
+        if isinstance(roi, list):
+            roi = ee.Geometry.Rectangle(roi)
+        
+        # Load Copernicus Land Cover
+        copernicus_lc = ee.Image(f'COPERNICUS/Landcover/100m/Proba-V-C3/Global/{year}') \
+            .select('discrete_classification')
+        
+        # Create stratified sample
+        samples = copernicus_lc.stratifiedSample(
+            numPoints=samples_per_class,
+            classBand='discrete_classification',
+            region=roi,
+            scale=scale,
+            seed=seed,
+            geometries=True
+        )
+        
+        # Rename to 'class' for consistency
+        samples = samples.map(lambda f: f.set('class', f.get('discrete_classification')))
+        
+        print(f"✓ Generated training samples from Copernicus Land Cover {year}")
+        print(f"  Samples per class: {samples_per_class}")
+        print(f"  Scale: {scale}m")
+        
+        return samples
+

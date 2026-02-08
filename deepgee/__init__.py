@@ -16,6 +16,7 @@ Features:
 """
 
 __version__ = "0.1.0"
+__copyright__ = "Copyright 2026, Pulakesh Pradhan"
 __author__ = "Pulakesh Pradhan"
 
 from .auth import authenticate_gee, initialize_gee

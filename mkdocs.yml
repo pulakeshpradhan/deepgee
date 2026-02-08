@@ -47,6 +47,7 @@ nav:
   - User Guide:
       - Overview: user-guide/overview.md
       - Complete Tutorial: user-guide/complete-tutorial.md
+      - Public Training Datasets: user-guide/public-datasets.md
       - Authentication: user-guide/authentication.md
       - Data Download: user-guide/data-download.md
       - Deep Learning: user-guide/deep-learning.md
@@ -104,4 +105,4 @@ extra:
   version:
     provider: mike
 
-copyright: Copyright &copy; 2024 Pulakesh Pradhan
+copyright: Copyright &copy; 2026 Pulakesh Pradhan
