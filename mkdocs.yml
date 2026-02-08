@@ -46,6 +46,7 @@ nav:
       - GEE Setup: getting-started/gee-setup.md
   - User Guide:
       - Overview: user-guide/overview.md
+      - Complete Tutorial: user-guide/complete-tutorial.md
       - Authentication: user-guide/authentication.md
       - Data Download: user-guide/data-download.md
       - Deep Learning: user-guide/deep-learning.md
