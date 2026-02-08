@@ -1,7 +1,14 @@
+<div align="center">
+
+<img src="docs/assets/logo.png" alt="DeepGEE Logo" width="200"/>
+
 # DeepGEE: Earth Observation with Google Earth Engine and Deep Learning
 
 [![Python Version](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![GitHub Stars](https://img.shields.io/github/stars/pulakeshpradhan/deepgee)](https://github.com/pulakeshpradhan/deepgee)
+
+</div>
 
 A comprehensive Python package for integrating **Google Earth Engine (GEE)** with **Deep Learning** for advanced Earth observation analysis.
 

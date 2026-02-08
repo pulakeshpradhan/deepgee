@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![DeepGEE Logo](assets/logo.png){ width="200" }
+<img src="assets/logo.png" alt="DeepGEE Logo" width="200"/>
 
 **Earth Observation with Google Earth Engine and Deep Learning**
 
